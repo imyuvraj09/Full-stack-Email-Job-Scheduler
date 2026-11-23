@@ -5,7 +5,7 @@ import {
   type NextFunction,
 } from "express";
 import { randomBytes } from "node:crypto";
-import { base, env, frontendBase } from "../config";
+import { base, env, frontendBase, isAllowedOrigin } from "../config";
 import { hash, seal, unseal } from "../crypto";
 import { db } from "../db/database";
 type Profile = {
@@ -22,11 +22,11 @@ declare global {
     }
   }
 }
-const isCross = frontendBase !== base;
+const isHttps = base.startsWith("https:");
 const cookies = {
   httpOnly: true,
-  secure: isCross || base.startsWith("https:"),
-  sameSite: (isCross ? "none" : "lax") as "none" | "lax",
+  secure: isHttps,
+  sameSite: (isHttps ? "none" : "lax") as "none" | "lax",
   path: "/",
 };
 export async function identify(
@@ -62,6 +62,13 @@ for (const provider of ["google", "slack"] as const) {
       return;
     }
     const state = randomBytes(32).toString("hex");
+    let returnTo = frontendBase;
+    if (req.headers.referer) {
+      try {
+        const refUrl = new URL(req.headers.referer);
+        if (isAllowedOrigin(refUrl.origin)) returnTo = refUrl.origin;
+      } catch {}
+    }
     res.cookie(
       "flow_" + provider,
       seal(
@@ -69,6 +76,7 @@ for (const provider of ["google", "slack"] as const) {
           state,
           owner: req.user?.id,
           until: Date.now() + 600000,
+          returnTo,
         }),
       ),
       { ...cookies, maxAge: 600000 },
@@ -103,8 +111,12 @@ for (const provider of ["google", "slack"] as const) {
       res.sendStatus(403);
       return;
     }
+    const target =
+      flow.returnTo && isAllowedOrigin(flow.returnTo)
+        ? flow.returnTo
+        : frontendBase;
     if (typeof req.query.code !== "string") {
-      res.redirect(frontendBase + "/?auth=cancelled");
+      res.redirect(target + "/?auth=cancelled");
       return;
     }
     const form = new URLSearchParams({
@@ -172,7 +184,7 @@ for (const provider of ["google", "slack"] as const) {
         seal(url),
       ]);
     }
-    res.redirect(frontendBase + "/");
+    res.redirect(target + "/");
   });
 }
 auth.post("/logout", required, async (req, res) => {

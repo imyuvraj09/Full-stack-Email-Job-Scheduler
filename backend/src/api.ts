@@ -8,14 +8,14 @@ import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { ExpressAdapter } from "@bull-board/express";
 import auth, { identify, required } from "./routes/auth";
-import { cap, gap, senders, clientOrigins } from "./config";
+import { cap, gap, senders, isAllowedOrigin } from "./config";
 import { migrate } from "./db/database";
 import { queue } from "./services/queue";
 const app = express();
 app.disable("x-powered-by");
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && clientOrigins.has(origin)) {
+  if (origin && isAllowedOrigin(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader(
@@ -34,7 +34,7 @@ app.use((req, res, next) => {
   if (
     !["GET", "HEAD", "OPTIONS"].includes(req.method) &&
     origin &&
-    !clientOrigins.has(origin)
+    !isAllowedOrigin(origin)
   ) {
     res.sendStatus(403);
     return;

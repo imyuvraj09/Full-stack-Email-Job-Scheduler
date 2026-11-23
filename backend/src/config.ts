@@ -23,6 +23,15 @@ export const clientOrigins = new Set(
     })
     .filter((o): o is string => Boolean(o)),
 );
+export const isAllowedOrigin = (origin: string): boolean => {
+  if (clientOrigins.has(origin)) return true;
+  try {
+    const url = new URL(origin);
+    if (url.hostname.endsWith(".netlify.app")) return true;
+    if (url.hostname === "localhost" || url.hostname === "127.0.0.1") return true;
+  } catch {}
+  return false;
+};
 export const senders = z
   .array(
     z.object({
