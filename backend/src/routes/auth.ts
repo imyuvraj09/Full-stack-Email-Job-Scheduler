@@ -61,6 +61,13 @@ for (const provider of ["google", "slack"] as const) {
       res.sendStatus(401);
       return;
     }
+    let returnTo = frontendBase;
+    if (req.headers.referer) {
+      try {
+        const refUrl = new URL(req.headers.referer);
+        if (isAllowedOrigin(refUrl.origin)) returnTo = refUrl.origin;
+      } catch {}
+    }
     const clientId = process.env[prefix + "_CLIENT_ID"];
     if (google && (!clientId || clientId.trim() === "")) {
       try {
@@ -86,13 +93,6 @@ for (const provider of ["google", "slack"] as const) {
       }
     }
     const state = randomBytes(32).toString("hex");
-    let returnTo = frontendBase;
-    if (req.headers.referer) {
-      try {
-        const refUrl = new URL(req.headers.referer);
-        if (isAllowedOrigin(refUrl.origin)) returnTo = refUrl.origin;
-      } catch {}
-    }
     res.cookie(
       "flow_" + provider,
       seal(
