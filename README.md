@@ -1,13 +1,9 @@
-**Upload a list of leads, pick a start time, and let the queue send the emails for you.**
-Scheduled sends survive restarts, and per-sender rate limits keep the SMTP side under control.
-
-
-https://github.com/user-attachments/assets/b0412bec-a37d-4e50-a03e-4294716cda8f
-
 <div align="center">
 
 # 📬 Full-stack Email Job Scheduler
 
+**Upload a list of leads, pick a start time, and let the queue send the emails for you.**
+Scheduled sends survive restarts, and per-sender rate limits keep the SMTP side under control.
 
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933?logo=node.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)
@@ -31,9 +27,9 @@ https://github.com/user-attachments/assets/b0412bec-a37d-4e50-a03e-4294716cda8f
 - [📁 Project structure](#-project-structure)
 - [🧱 Architecture](#-architecture)
 - [✅ Features](#-features)
+- [🎬 Demo video](#-demo-video)
 - [🚀 Getting started](#-getting-started)
 - [🔌 API reference](#-api-reference)
-- [🎬 Demo video](#-demo-video)
 - [🧪 Tests](#-tests)
 - [📝 Assumptions, shortcuts and trade-offs](#-assumptions-shortcuts-and-trade-offs)
 - [🩺 Troubleshooting](#-troubleshooting)
@@ -213,6 +209,32 @@ Email status moves through `scheduled → sending → sent`, or ends in `failed`
 | 💬 **States** | Loading, empty and error states with a Retry button. |
 | 👀 **Previews** | Sent subjects link to the Ethereal message preview. |
 | 🔌 **Integrations** | Connect or disconnect Slack. Admins also see a link to the queue dashboard. |
+
+---
+
+## 🎬 Demo video
+
+https://github.com/user-attachments/assets/b0412bec-a37d-4e50-a03e-4294716cda8f
+
+| Scenario | Where to see it |
+| --- | --- |
+| Creating scheduled emails from the frontend | The video above |
+| Dashboard with **Scheduled** and **Sent** emails, plus Ethereal previews | The video above |
+| Restart: stop everything, start again, future emails still send | [`demo/Scheduler-Demo.mp4`](demo/Scheduler-Demo.mp4) |
+| Rate limiting: with a cap of 2 per hour, the third email moves to the next hour | [`demo/Scheduler-Demo.mp4`](demo/Scheduler-Demo.mp4) |
+
+The recording in `demo/` was made from the integration setup, with a seeded test session and a local SMTP capture server standing in for Google and Ethereal.
+
+**Reproduce the restart demo yourself:**
+
+```sh
+# 1. Compose a campaign with leads.demo.csv, start time 1 minute ahead, hourly cap 2
+# 2. Before the due time, stop the app:
+docker compose stop api worker
+# 3. Start it again:
+docker compose up -d --scale worker=2 api worker
+# 4. Refresh the dashboard: same three rows, two get sent, the third waits for the next hour
+```
 
 ---
 
@@ -399,38 +421,6 @@ curl -X POST http://localhost:3000/api/campaigns \
 ```
 
 `start` is an ISO date in UTC and `delay` is in milliseconds.
-
----
-
-## 🎬 Demo video
-
-<!--
-  To make the video play inline on GitHub: edit this README on github.com, drag your .mp4 into the editor,
-  and GitHub will insert a link that renders as a player. Otherwise, upload it to YouTube, Loom or Drive
-  and replace the link below.
--->
-
-▶️ **[Watch the demo (about 1.5 minutes)](ADD_YOUR_VIDEO_LINK_HERE)**
-
-| Scenario | Where to see it |
-| --- | --- |
-| Creating scheduled emails from the frontend | Main demo video |
-| Dashboard with **Scheduled** and **Sent** emails, plus Ethereal previews | Main demo video |
-| Restart: stop everything, start again, future emails still send | [`demo/Scheduler-Demo.mp4`](demo/Scheduler-Demo.mp4) |
-| Rate limiting: with a cap of 2 per hour, the third email moves to the next hour | [`demo/Scheduler-Demo.mp4`](demo/Scheduler-Demo.mp4) |
-
-The recording in `demo/` was made from the integration setup, with a seeded test session and a local SMTP capture server standing in for Google and Ethereal.
-
-**Reproduce the restart demo yourself:**
-
-```sh
-# 1. Compose a campaign with leads.demo.csv, start time 1 minute ahead, hourly cap 2
-# 2. Before the due time, stop the app:
-docker compose stop api worker
-# 3. Start it again:
-docker compose up -d --scale worker=2 api worker
-# 4. Refresh the dashboard: same three rows, two get sent, the third waits for the next hour
-```
 
 ---
 
