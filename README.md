@@ -12,7 +12,6 @@ Scheduled sends survive restarts, and per-sender rate limits keep the SMTP side 
 ![BullMQ](https://img.shields.io/badge/BullMQ-5-E4405F)
 ![Redis](https://img.shields.io/badge/Redis-7.4-DC382D?logo=redis&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
 <img src="docs/screenshots/compose.png" alt="Compose screen" width="780">
 
@@ -75,7 +74,6 @@ Emails go out through [Ethereal](https://ethereal.email), a fake SMTP service th
 | 🔐 **Auth** | Google OAuth 2.0, opaque cookie sessions |
 | 🔔 **Notifications** | Slack incoming webhooks (optional) |
 | 📊 **Queue dashboard** | Bull Board, read-only, admin only |
-| 🐳 **Infra** | Docker and Docker Compose |
 | 🧪 **Testing** | Node's built-in test runner, `smtp-server` for a fake SMTP receiver |
 
 ---
@@ -117,9 +115,6 @@ Emails go out through [Ethereal](https://ethereal.email), a fake SMTP service th
 │   └── integration/            # End-to-end suite with two workers and fake providers
 ├── demo/Scheduler-Demo.mp4     # Restart + rate-limit demo
 ├── docs/screenshots/           # Images used in this README
-├── compose.yaml                # App stack: db, redis, search, api, worker
-├── compose.test.yaml           # Isolated stack for integration tests
-├── Dockerfile
 ├── .env.example
 ├── leads.demo.csv              # Sample recipient list
 └── package.json
@@ -157,7 +152,7 @@ Email status moves through `scheduled → sending → sent`, or ends in `failed`
 
 | Situation | What happens |
 | --- | --- |
-| Server or worker is stopped and started again | Campaigns, emails and counters are in Postgres. Delayed jobs are in Redis, which runs with `appendonly yes` and `appendfsync always` on a named volume. When workers come back, anything that came due in the meantime is picked up straight away (still rate limited). |
+| Server or worker is stopped and started again | Campaigns, emails and counters are in Postgres. Delayed jobs are in Redis, which runs with AOF persistence. When workers come back, anything that came due in the meantime is picked up straight away (still rate limited). |
 | Crash after the DB commit but before the job reached Redis | The outbox event is still in Postgres, so the relay replays it on the next start. |
 | Crash after the job reached Redis but before the event was marked done | The event is replayed with the same job ID, so BullMQ does not create a duplicate. |
 | Worker dies in the middle of an SMTP call | BullMQ's stalled-job recovery hands the job to another worker. Because the email was already marked `sending`, it is set to `uncertain` and **not** sent again. |
@@ -175,7 +170,7 @@ Email status moves through `scheduled → sending → sent`, or ends in `failed`
 
 **Concurrency**
 
-- Each worker process runs up to `WORKER_CONCURRENCY` jobs at once (default 8, max 24). You can run more worker processes with `docker compose up -d --scale worker=2`.
+- Each worker process runs up to `WORKER_CONCURRENCY` jobs at once (default 8, max 24). You can run multiple worker processes in parallel across terminal tabs or background services.
 - Different senders send in parallel. **One sender is serialized** by a Postgres advisory lock held through the SMTP call, so two workers can never send from the same mailbox at once. If a job finds the lock taken, it retries after a short random delay.
 - The counters are updated and the email is marked `sending` in a single transaction while the lock is held. The SMTP call itself runs outside the transaction.
 
@@ -188,7 +183,7 @@ Email status moves through `scheduled → sending → sent`, or ends in `failed`
 | Requirement | What was built |
 | --- | --- |
 | ⏰ **Scheduler** | BullMQ delayed jobs, one per recipient, spaced by the chosen delay. Transactional outbox moves work from Postgres into Redis. |
-| 💾 **Persistence** | Postgres for campaigns, emails, counters and outbox. Redis with AOF `always`. Replayable events, stable job IDs and stalled-job recovery. |
+| 💾 **Persistence** | Postgres for campaigns, emails, counters and outbox. Redis with AOF persistence. Replayable events, stable job IDs and stalled-job recovery. |
 | 🚦 **Rate limiting** | Per-sender and per-campaign hourly caps, minimum gap between sends, delayed rather than dropped when full. |
 | 🧵 **Concurrency** | Configurable concurrency per worker, multiple workers supported, per-sender advisory lock, cross-worker counters. |
 | 🔁 **Idempotency** | UUID `Idempotency-Key` on campaign creation. A retry returns the same campaign, and reusing a key with a different body returns `409`. |
@@ -214,25 +209,23 @@ Email status moves through `scheduled → sending → sent`, or ends in `failed`
 
 ## 🎬 Demo video
 
-https://github.com/user-attachments/assets/b0412bec-a37d-4e50-a03e-4294716cda8f
+[Watch Demo Video (Scheduler-Demo.mp4)](demo/Scheduler-Demo.mp4)
 
 | Scenario | Where to see it |
 | --- | --- |
-| Creating scheduled emails from the frontend | The video above |
-| Dashboard with **Scheduled** and **Sent** emails, plus Ethereal previews | The video above |
+| Creating scheduled emails from the frontend | [`demo/Scheduler-Demo.mp4`](demo/Scheduler-Demo.mp4) |
+| Dashboard with **Scheduled** and **Sent** emails, plus Ethereal previews | [`demo/Scheduler-Demo.mp4`](demo/Scheduler-Demo.mp4) |
 | Restart: stop everything, start again, future emails still send | [`demo/Scheduler-Demo.mp4`](demo/Scheduler-Demo.mp4) |
 | Rate limiting: with a cap of 2 per hour, the third email moves to the next hour | [`demo/Scheduler-Demo.mp4`](demo/Scheduler-Demo.mp4) |
-
-The recording in `demo/` was made from the integration setup, with a seeded test session and a local SMTP capture server standing in for Google and Ethereal.
 
 **Reproduce the restart demo yourself:**
 
 ```sh
 # 1. Compose a campaign with leads.demo.csv, start time 1 minute ahead, hourly cap 2
-# 2. Before the due time, stop the app:
-docker compose stop api worker
+# 2. Before the due time, stop the app (press Ctrl+C on the API and worker terminals)
 # 3. Start it again:
-docker compose up -d --scale worker=2 api worker
+npm run api       # in terminal 1
+npm run worker    # in terminal 2
 # 4. Refresh the dashboard: same three rows, two get sent, the third waits for the next hour
 ```
 
@@ -242,9 +235,11 @@ docker compose up -d --scale worker=2 api worker
 
 ### 📋 Prerequisites
 
-- **Docker** with Compose v2. Give Docker at least **4 GB** of memory, because Elasticsearch needs it.
-- A **Google Cloud** account (for the OAuth client) and a free **Ethereal** account (for SMTP).
-- Only if you run without Docker: **Node.js 22.18+ or 24**, plus your own Postgres 16, Redis 7 and Elasticsearch 8.
+- **Node.js 22.18+ or 24**
+- **PostgreSQL 16** (local instance or cloud database such as Neon / Supabase)
+- **Redis 7+** (local instance or cloud database such as Upstash / Aiven)
+- **Elasticsearch 8.17+** (local standalone download or cloud instance)
+- A **Google Cloud** account (for OAuth) and a free **Ethereal** account (for SMTP).
 
 ### 1️⃣ Clone and create your `.env`
 
@@ -293,7 +288,10 @@ The app connects to `smtp.ethereal.email` on port 587 with STARTTLS. That host i
 | --- | :---: | --- |
 | `APP_URL` | ✅ | Browser-facing origin, e.g. `http://localhost:3000`. Use HTTPS if you host it. |
 | `APP_KEY` | ✅ | 64 hex characters. Keep it stable across restarts. It signs OAuth state cookies and encrypts Slack webhook URLs. |
-| `POSTGRES_PASSWORD` | ✅ | Local database password. Compose sets the host, user and database name. |
+| `POSTGRES_PASSWORD` | ✅ | Database password. |
+| `PGHOST`, `PGUSER`, `PGDATABASE` | ✅ | PostgreSQL host, user, and database name. |
+| `REDIS_HOST`, `REDIS_PORT` | ✅ | Redis connection host and port. |
+| `ES_URL` | ✅ | Elasticsearch URL, e.g. `http://localhost:9200`. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | ✅ | OAuth client from step 3. |
 | `SMTP_SENDERS` | ✅ | One-line JSON array of Ethereal senders from step 2. |
 | `QUEUE_ADMIN_EMAIL` | ➖ | The Google account allowed to open `/ops/queues`. Leave it empty and nobody can. |
@@ -301,8 +299,6 @@ The app connects to `smtp.ethereal.email` on port 587 with STARTTLS. That host i
 | `MIN_DELAY_MS` | ➖ | Minimum cooldown after each send, per sender. Default `2000`. |
 | `MAX_EMAILS_PER_HOUR` | ➖ | Hourly cap per sender. Default `200`. A campaign can set a lower one. |
 | `WORKER_CONCURRENCY` | ➖ | Jobs running at once per worker process. Default `8`, max `24`. |
-
-Docker Compose also sets `PGHOST`, `PGUSER`, `PGDATABASE`, `REDIS_HOST` and `ES_URL` for the containers. You only need to set those yourself when running outside Compose.
 
 <details>
 <summary>💬 <b>Optional: Slack alerts</b></summary>
@@ -319,69 +315,39 @@ Docker Compose also sets `PGHOST`, `PGUSER`, `PGDATABASE`, `REDIS_HOST` and `ES_
 
 ### 5️⃣ Run the backend (Express, Redis, Postgres, BullMQ worker)
 
-#### 🐳 With Docker (recommended)
-
-```sh
-docker compose up --build -d
-docker compose logs -f api worker
-```
-
-This starts everything:
-
-| Service | What it is |
-| --- | --- |
-| `db` | PostgreSQL 16 with a named volume |
-| `redis` | Redis 7.4 with AOF persistence and a named volume |
-| `search` | Elasticsearch 8.17, single node |
-| `api` | Express API. Applies the schema on start, serves the built React app and the queue dashboard on <http://localhost:3000> |
-| `worker` | BullMQ worker plus the outbox relays that move events into Redis and Elasticsearch |
-
-Useful commands:
-
-```sh
-docker compose up -d --scale worker=2   # run two workers (keep sender and limit settings identical)
-docker compose down                     # stop, keep your data
-docker compose down -v                  # stop and delete all data
-```
-
-> ⚠️ The **worker must be running** for emails to be queued and sent. The API only writes to Postgres.
-
-#### 🔧 Without Docker
-
-Start your own Postgres, Redis and Elasticsearch first, then from the project root:
+Start your PostgreSQL, Redis, and Elasticsearch services, then from the project root:
 
 ```sh
 npm ci
 npm run build                 # builds the React app into frontend/dist
-
-# load .env into the shell (bash/zsh)
-set -a && source .env && set +a
-
-# point at your services if they are not on the defaults
-export PGHOST=localhost PGUSER=scheduler PGDATABASE=scheduler
-export REDIS_HOST=localhost ES_URL=http://localhost:9200
-
-npm run api                   # terminal 1, listens on :3000
-npm run worker                # terminal 2
 ```
 
-Run both commands from the repository root, since the API serves `frontend/dist` relative to it.
+**Terminal 1 — API Server:**
+```sh
+npm run api                   # listens on http://localhost:3000
+```
+This starts the Express server, applies the PostgreSQL database schema automatically on start, and serves the production React frontend on `http://localhost:3000`.
+
+**Terminal 2 — BullMQ Worker:**
+```sh
+npm run worker                # processes delayed jobs and sends emails
+```
+> ⚠️ The **worker must be running** for emails to be queued and sent. The API writes to Postgres, and the worker relays and delivers jobs.
 
 ### 6️⃣ Run the frontend
 
-**Production build (default).** The Express server already serves the compiled React app. After step 5, open <http://localhost:3000>.
+**Production build (default):**
+The Express server already serves the compiled React app on <http://localhost:3000>.
 
-**Development with hot reload.**
-
+**Development with hot reload:**
 ```sh
-npm run web      # Vite dev server on http://localhost:5173
+npm run web                   # Vite dev server on http://localhost:5173
 ```
-
-Vite proxies `/api`, `/auth` and `/ops` to the backend on port 3000, so keep the backend running. For this mode, set `APP_URL=http://localhost:5173` in `.env`, restart the API, and add `http://localhost:5173/auth/google/callback` as a second redirect URI in Google Cloud.
+Vite proxies `/api`, `/auth` and `/ops` to the backend on port 3000.
 
 ### 7️⃣ Try it
 
-1. Open the app and log in with Google.
+1. Open <http://localhost:3000> and log in with Google.
 2. Click **Compose new email**, upload `leads.demo.csv`, set the start time a minute ahead, and click **Schedule emails**.
 3. Watch the rows in **Scheduled emails** move to **Sent emails**, then click a subject to open the Ethereal preview.
 
@@ -402,8 +368,7 @@ Vite proxies `/api`, `/auth` and `/ops` to the backend on port 3000, so keep the
 
 **Limits:** up to 10,000 addresses per campaign, subject up to 250 characters on one line, body up to 100,000 characters, delay between `MIN_DELAY_MS` and one hour, hourly cap between 1 and `MAX_EMAILS_PER_HOUR`.
 
-**Using Postman or cURL.** Log in through the browser, copy the `sid` cookie, and send it with your request:
-
+**Using Postman or cURL:**
 ```sh
 curl -X POST http://localhost:3000/api/campaigns \
   -H "Content-Type: application/json" \
@@ -420,8 +385,6 @@ curl -X POST http://localhost:3000/api/campaigns \
   }'
 ```
 
-`start` is an ISO date in UTC and `delay` is in milliseconds.
-
 ---
 
 ## 🧪 Tests
@@ -432,15 +395,6 @@ npm test            # unit tests: rate windows, cooldowns, lead parsing
 npm run build       # TypeScript check + production React build
 ```
 
-Integration suite (runs in its own throwaway Docker project):
-
-```sh
-docker compose -f compose.test.yaml up --build --abort-on-container-exit --exit-code-from integration
-docker compose -f compose.test.yaml down
-```
-
-It runs the API with two worker processes against real Postgres, Redis and Elasticsearch, with a fake SMTP server and local stand-ins for Google and Slack. It covers concurrent idempotency, tenant isolation in search, restart recovery, hourly rollover, SMTP spacing, queue dashboard access, Slack disconnect and reconnect, 1,000 delayed jobs, and a worker being killed mid-SMTP (exactly one copy is received, and the email is marked `uncertain`).
-
 ---
 
 ## 📝 Assumptions, shortcuts and trade-offs
@@ -450,19 +404,16 @@ It runs the API with two worker processes against real Postgres, Redis and Elast
 - **Fixed hourly windows (UTC), not sliding ones.** A burst can land on both sides of an hour boundary, though the minimum gap still applies. Simple and cheap to reason about, but not perfectly smooth.
 - **Due times are "not before" times.** Provider latency, downtime or rate limits can delay delivery. Strict ordering across jobs that become due at the same moment is best effort.
 - **Duplicates are avoided over guaranteed delivery.** If a worker dies during SMTP, the email is marked `uncertain` instead of being retried. That can mean an undelivered email, so check the Ethereal mailbox and the `Message-ID` before resending by hand. Failed and uncertain attempts are not retried automatically and still count toward the hourly cap.
-- **Search is eventually consistent.** Elasticsearch is updated through the outbox, so a new row can take a moment to be searchable. Browsing without a search term keeps working from Postgres if Elasticsearch is down. It is also the heaviest piece of the stack and arguably more than a project this size needs.
+- **Search is eventually consistent.** Elasticsearch is updated through the outbox, so a new row can take a moment to be searchable. Browsing without a search term keeps working from Postgres if Elasticsearch is down.
 - **Lead parsing is simple.** The upload finds ordinary ASCII email addresses in any column or line, removes duplicates, and rejects files over 3 MB or lists over 10,000 addresses.
 - **Slack is at-least-once.** A lost response can lead to a repeated alert, and Slack needs an HTTPS redirect URL, so local testing needs a tunnel.
 - **Google sign-in only.** No email and password accounts.
-- **Reference setup, not a hosted deployment.** The internal services aren't exposed outside Docker, and backups of the Postgres and Redis volumes are up to you. Losing both the volumes and the backups is outside what this setup recovers from.
-- **Provider integrations in tests are fakes.** Google, Slack and SMTP are replaced with local stand-ins, so live consent screens, real Slack workspaces and Ethereal itself are only exercised by hand.
 
 ---
 
 ## 🩺 Troubleshooting
 
-- **Emails stay on "scheduled" forever.** Check that the `worker` container is running (`docker compose ps`). It is the process that moves jobs into Redis and sends them.
+- **Emails stay on "scheduled" forever.** Check that the `worker` process is running (`npm run worker`). It is the process that moves jobs into Redis and sends them.
 - **Google says `redirect_uri_mismatch`.** The redirect URI in Google Cloud must match `APP_URL` exactly, including the port, plus `/auth/google/callback`.
 - **A POST request is rejected with 403.** The request carried an `Origin` header that doesn't match `APP_URL`. This usually happens in Vite dev mode if `APP_URL` is still set to port 3000.
-- **App won't start and says `Missing ...`.** A required variable in `.env` is empty. Check `APP_KEY`, `POSTGRES_PASSWORD` and `SMTP_SENDERS`.
-- **Elasticsearch container keeps exiting.** Docker probably has too little memory. Raise it to 4 GB or more.
+- **App won't start and says `Missing ...`.** A required variable in `.env` is empty. Check `APP_KEY`, `POSTGRES_PASSWORD`, and `SMTP_SENDERS`.
