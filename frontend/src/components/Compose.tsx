@@ -16,7 +16,7 @@ export function Compose({
   const [reading, setReading] = useState(false),
     version = useRef(0),
     request = useRef({ key: "", body: "" });
-  const now = new Date(Date.now() + 300000),
+  const now = new Date(),
     initial = new Date(+now - now.getTimezoneOffset() * 60000)
       .toISOString()
       .slice(0, 16);
