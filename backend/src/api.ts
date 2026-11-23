@@ -7,8 +7,10 @@ import { z } from "zod";
 import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { ExpressAdapter } from "@bull-board/express";
-import auth, { identify, required } from "./auth";
-import { base, cap, gap, senders, queue, migrate } from "./core";
+import auth, { identify, required } from "./routes/auth";
+import { base, cap, gap, senders } from "./config";
+import { migrate } from "./db/database";
+import { queue } from "./services/queue";
 const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "3mb" }), cookieParser(), identify);
@@ -69,7 +71,7 @@ const errors: ErrorRequestHandler = (err, _req, res, _next) => {
   console.error(err.name, err.code || "request failed");
   res
     .status(err.status || 503)
-    .json({ error: "Request could not be completed. Please try again." });
+    .json({ error: "Request failed. Please try again." });
 };
 app.use(errors);
 await migrate();

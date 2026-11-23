@@ -1,18 +1,11 @@
 import { Worker, DelayedError, type Job } from "bullmq";
 import nodemailer from "nodemailer";
 import type { PoolClient } from "pg";
-import {
-  db,
-  connection,
-  concurrency,
-  senders,
-  gap,
-  cap,
-  migrate,
-  queue,
-} from "./core";
-import { allocation, type Bucket } from "./policy";
-import { relay } from "./relay";
+import { concurrency, senders, gap, cap } from "./config";
+import { db, migrate } from "./db/database";
+import { connection, queue } from "./services/queue";
+import { allocation, type Bucket } from "./services/policy";
+import { relay } from "./services/relay";
 const transports = new Map(
   senders.map((s) => [
     s.id,
@@ -32,7 +25,7 @@ async function postpone(job: Job, at: number, token?: string) {
   await job.moveToDelayed(at, token);
   throw new DelayedError();
 }
-async function index(c: PoolClient, id: string) {
+async function queueIndexUpdate(c: PoolClient, id: string) {
   await c.query("INSERT INTO event(kind,entity) VALUES('index',$1)", [id]);
 }
 async function deliver(job: Job, token?: string) {
@@ -69,7 +62,7 @@ async function deliver(job: Job, token?: string) {
         "UPDATE email SET status='uncertain',finished=now(),detail='Interrupted during SMTP. Inspect Ethereal before retrying manually.',revision=revision+1 WHERE id=$1",
         [id],
       );
-      await index(c, id);
+      await queueIndexUpdate(c, id);
       await c.query("COMMIT");
       return;
     }
@@ -105,7 +98,7 @@ async function deliver(job: Job, token?: string) {
           "UPDATE email SET due=to_timestamp($2::double precision/1000),revision=revision+1 WHERE id=$1",
           [id, at],
         );
-        await index(c, id);
+        await queueIndexUpdate(c, id);
       }
       await c.query("COMMIT");
       return await postpone(job, at, token);
@@ -134,7 +127,7 @@ async function deliver(job: Job, token?: string) {
       "UPDATE email SET status='sending',started=now(),revision=revision+1 WHERE id=$1",
       [id],
     );
-    await index(c, id);
+    await queueIndexUpdate(c, id);
     await c.query("COMMIT");
     let status = "sent",
       detail: string | null = null,
@@ -170,7 +163,7 @@ async function deliver(job: Job, token?: string) {
         [rule.key, rule.delay],
       );
     }
-    await index(c, id);
+    await queueIndexUpdate(c, id);
     await c.query("COMMIT");
   } catch (e) {
     if (!(e instanceof DelayedError)) await c.query("ROLLBACK");

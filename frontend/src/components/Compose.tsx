@@ -1,6 +1,6 @@
-import React, { useRef, useState } from "react";
-import { api, type Me } from "../api";
-import { parseLeads } from "../leads";
+import { type FormEvent, useRef, useState } from "react";
+import { api, type Me } from "../services/api";
+import { parseLeads } from "../utils/leads";
 export function Compose({
   me,
   close,
@@ -20,20 +20,20 @@ export function Compose({
     initial = new Date(+now - now.getTimezoneOffset() * 60000)
       .toISOString()
       .slice(0, 16);
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
+  async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!leads.length) {
       setError("Upload a file containing at least one email address.");
       return;
     }
-    const f = new FormData(e.currentTarget);
+    const form = new FormData(e.currentTarget);
     const payload = JSON.stringify({
-      subject: f.get("subject"),
-      body: f.get("body"),
-      sender: f.get("sender"),
-      start: new Date(String(f.get("start"))).toISOString(),
-      delay: Math.round(Number(f.get("delay")) * 1000),
-      hourly: Number(f.get("hourly")),
+      subject: form.get("subject"),
+      body: form.get("body"),
+      sender: form.get("sender"),
+      start: new Date(String(form.get("start"))).toISOString(),
+      delay: Math.round(Number(form.get("delay")) * 1000),
+      hourly: Number(form.get("hourly")),
       leads,
     });
     if (request.current.body !== payload)

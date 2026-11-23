@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { allocation, HOUR } from "../backend/src/policy.ts";
+import { allocation, HOUR } from "../backend/src/services/policy.ts";
 test("a full sender waits until the next UTC hour", () => {
   assert.equal(
     allocation(100, { window: 0, used: 2, next_at: 75 }, 2).available,

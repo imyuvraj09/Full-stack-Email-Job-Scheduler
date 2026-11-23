@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { senders, gap, cap, tx, hash } from "../core";
+import { senders, gap, cap } from "../config";
+import { hash } from "../crypto";
+import { tx } from "../db/database";
 const router = Router();
 const schema = z.object({
   sender: z.string().refine((s) => senders.some((x) => x.id === s)),
@@ -29,9 +31,9 @@ const schema = z.object({
 });
 router.post("/", async (req, res) => {
   const key = z.string().uuid().parse(req.header("Idempotency-Key"));
-  const p = schema.parse(req.body),
-    leads = [...new Set(p.leads)],
-    digest = hash(JSON.stringify({ ...p, leads }));
+  const campaign = schema.parse(req.body),
+    leads = [...new Set(campaign.leads)],
+    digest = hash(JSON.stringify({ ...campaign, leads }));
   const result = await tx(async (c) => {
     const id = randomUUID();
     const insert = await c.query(
@@ -41,11 +43,11 @@ router.post("/", async (req, res) => {
         req.user!.id,
         key,
         digest,
-        p.sender,
-        p.subject,
-        p.body,
-        p.delay,
-        p.hourly,
+        campaign.sender,
+        campaign.subject,
+        campaign.body,
+        campaign.delay,
+        campaign.hourly,
       ],
     );
     if (!insert.rowCount) {
@@ -59,7 +61,7 @@ router.post("/", async (req, res) => {
     }
     await c.query(
       `WITH added AS (INSERT INTO email(id,campaign,recipient,due) SELECT gen_random_uuid(),$1,r,$2::timestamptz+(n-1)*$3::bigint*interval '1 millisecond' FROM unnest($4::text[]) WITH ORDINALITY AS l(r,n) RETURNING id) INSERT INTO event(kind,entity) SELECT k,id::text FROM added CROSS JOIN unnest(ARRAY['enqueue','index']) k`,
-      [id, p.start, p.delay, leads],
+      [id, campaign.start, campaign.delay, leads],
     );
     return { code: 201, id };
   });

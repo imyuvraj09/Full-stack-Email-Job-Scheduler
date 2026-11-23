@@ -1,6 +1,7 @@
-import { indexEmails } from "./services/search";
-import { notifySlack } from "./services/slack";
-import { queue, join, tx } from "./core";
+import { indexEmails } from "./search";
+import { notifySlack } from "./slack";
+import { join, tx } from "../db/database";
+import { queue } from "./queue";
 import { setTimeout as pause } from "node:timers/promises";
 export async function relay(
   kind: "enqueue" | "index" | "notify",

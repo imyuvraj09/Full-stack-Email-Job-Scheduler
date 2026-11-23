@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, fields, join, elastic } from "../core";
+import { db, fields, join } from "../db/database";
+import { elastic } from "../services/search";
 import { ensureEmailIndex } from "../services/search";
 const router = Router();
 router.get("/", async (req, res) => {
-  const p = z
+  const filters = z
     .object({
       tab: z.enum(["scheduled", "sent"]).default("scheduled"),
       q: z.string().trim().max(250).default(""),
@@ -12,13 +13,13 @@ router.get("/", async (req, res) => {
     })
     .parse(req.query);
   const statuses =
-    p.tab === "scheduled"
+    filters.tab === "scheduled"
       ? ["scheduled", "sending"]
       : ["sent", "failed", "uncertain"];
-  const offset = (p.page - 1) * 25,
+  const offset = (filters.page - 1) * 25,
     owner = req.user!.id;
   let rows;
-  if (p.q) {
+  if (filters.q) {
     await ensureEmailIndex();
     const result = await elastic("/emails/_search", "POST", {
       from: offset,
@@ -29,7 +30,7 @@ router.get("/", async (req, res) => {
           must: [
             {
               multi_match: {
-                query: p.q,
+                query: filters.q,
                 fields: ["recipient", "subject", "body"],
                 type: "bool_prefix",
               },
@@ -39,8 +40,8 @@ router.get("/", async (req, res) => {
       },
       sort: [
         {
-          [p.tab === "scheduled" ? "due" : "finished"]:
-            p.tab === "scheduled" ? "asc" : "desc",
+          [filters.tab === "scheduled" ? "due" : "finished"]:
+            filters.tab === "scheduled" ? "asc" : "desc",
         },
         { id: "asc" },
       ],
@@ -62,7 +63,7 @@ router.get("/", async (req, res) => {
           fields +
           join +
           "WHERE c.owner=$1 AND e.status=ANY($2) ORDER BY " +
-          (p.tab === "scheduled" ? "e.due ASC" : "e.finished DESC") +
+          (filters.tab === "scheduled" ? "e.due ASC" : "e.finished DESC") +
           ",e.id LIMIT 25 OFFSET $3",
         [owner, statuses, offset],
       )

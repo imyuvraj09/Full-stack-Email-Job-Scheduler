@@ -64,6 +64,7 @@ test(
     const env = {
       ...process.env,
       APP_URL: base,
+      PORT: "3000",
       APP_KEY: randomBytes(32).toString("hex"),
       MAX_EMAILS_PER_HOUR: "2",
       MIN_DELAY_MS: "250",
@@ -82,7 +83,7 @@ test(
       ),
     };
     const db = new Pool({ password: env.POSTGRES_PASSWORD });
-    const connection = { host: env.REDIS_HOST || "127.0.0.1", port: 6379 };
+    const connection = { host: env.REDIS_HOST || "127.0.0.1", port: Number(env.REDIS_PORT || 6379) };
     const queue = new Queue("delivery", { connection });
     const processes = new Set();
     const receipts = [],

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseLeads } from "../frontend/src/leads.ts";
+import { parseLeads } from "../frontend/src/utils/leads.ts";
 test("handles header rows, quoted CSV fields and duplicate addresses", () => {
   assert.deepEqual(
     parseLeads(

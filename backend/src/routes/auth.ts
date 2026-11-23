@@ -5,8 +5,10 @@ import {
   type NextFunction,
 } from "express";
 import { randomBytes } from "node:crypto";
-import { base, db, env, hash, seal, unseal } from "./core";
-export type Profile = {
+import { base, env } from "../config";
+import { hash, seal, unseal } from "../crypto";
+import { db } from "../db/database";
+type Profile = {
   id: string;
   name: string;
   email: string;
@@ -20,7 +22,7 @@ declare global {
     }
   }
 }
-export const cookies = {
+const cookies = {
   httpOnly: true,
   secure: base.startsWith("https:"),
   sameSite: "lax" as const,
@@ -53,34 +55,10 @@ for (const provider of ["google", "slack"] as const) {
   const google = provider === "google",
     prefix = provider.toUpperCase(),
     callback = base + "/auth/" + provider + "/callback";
-  auth.get("/" + provider, async (req, res, next) => {
+  auth.get("/" + provider, async (req, res) => {
     if (!google && !req.user) {
       res.sendStatus(401);
       return;
-    }
-    const clientId = process.env[prefix + "_CLIENT_ID"];
-    if (google && (!clientId || clientId.trim() === "")) {
-      try {
-        const sub = "demo_google_user";
-        const email = "demo@example.com";
-        const name = "Demo User";
-        const avatar = "https://lh3.googleusercontent.com/a/default-user=s96-c";
-        await db.query(
-          "INSERT INTO account(id,name,email,avatar) VALUES($1,$2,$3,$4) ON CONFLICT(id) DO UPDATE SET name=excluded.name,email=excluded.email,avatar=excluded.avatar",
-          [sub, name, email, avatar],
-        );
-        const sid = randomBytes(32).toString("hex");
-        await db.query(
-          "INSERT INTO session VALUES($1,$2,now()+interval '7 days')",
-          [hash(sid), sub],
-        );
-        res.cookie("sid", sid, { ...cookies, maxAge: 7 * 86400000 });
-        res.redirect("/");
-        return;
-      } catch (err) {
-        next(err);
-        return;
-      }
     }
     const state = randomBytes(32).toString("hex");
     res.cookie(
@@ -135,48 +113,53 @@ for (const provider of ["google", "slack"] as const) {
       grant_type: "authorization_code",
       code: req.query.code,
     });
-    const r = await fetch(
+    const response = await fetch(
       google
         ? "https://oauth2.googleapis.com/token"
         : "https://slack.com/api/oauth.v2.access",
       { method: "POST", body: form, signal: AbortSignal.timeout(10000) },
     );
-    const result = await r.json();
-    if (!r.ok) {
+    const token = await response.json();
+    if (!response.ok) {
       res.sendStatus(502);
       return;
     }
     if (google) {
-      if (!result.access_token) {
+      if (!token.access_token) {
         res.sendStatus(403);
         return;
       }
       const info = await fetch(
         "https://openidconnect.googleapis.com/v1/userinfo",
         {
-          headers: { Authorization: "Bearer " + result.access_token },
+          headers: { Authorization: "Bearer " + token.access_token },
           signal: AbortSignal.timeout(10000),
         },
       );
-      const p = await info.json();
-      if (!info.ok || !p.sub || p.email_verified !== true) {
+      const profile = await info.json();
+      if (!info.ok || !profile.sub || profile.email_verified !== true) {
         res.sendStatus(403);
         return;
       }
       await db.query(
         "INSERT INTO account(id,name,email,avatar) VALUES($1,$2,$3,$4) ON CONFLICT(id) DO UPDATE SET name=excluded.name,email=excluded.email,avatar=excluded.avatar",
-        [p.sub, p.name || p.email, p.email, p.picture],
+        [
+          profile.sub,
+          profile.name || profile.email,
+          profile.email,
+          profile.picture,
+        ],
       );
       const sid = randomBytes(32).toString("hex");
       await db.query(
         "INSERT INTO session VALUES($1,$2,now()+interval '7 days')",
-        [hash(sid), p.sub],
+        [hash(sid), profile.sub],
       );
       res.cookie("sid", sid, { ...cookies, maxAge: 7 * 86400000 });
     } else {
-      const url = result.incoming_webhook?.url;
+      const url = token.incoming_webhook?.url;
       if (
-        !result.ok ||
+        !token.ok ||
         typeof url !== "string" ||
         !url.startsWith("https://hooks.slack.com/services/")
       ) {

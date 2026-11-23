@@ -1,4 +1,47 @@
-import { esHeaders, esBaseUrl } from "../core";
+function esHeaders(contentType = "application/json") {
+  const headers: Record<string, string> = { "Content-Type": contentType };
+  if (process.env.ES_AUTH) {
+    headers["Authorization"] =
+      process.env.ES_AUTH.startsWith("Bearer ") ||
+      process.env.ES_AUTH.startsWith("ApiKey ") ||
+      process.env.ES_AUTH.startsWith("Basic ")
+        ? process.env.ES_AUTH
+        : `Basic ${Buffer.from(process.env.ES_AUTH).toString("base64")}`;
+  } else if (process.env.ES_API_KEY) {
+    headers["Authorization"] = `ApiKey ${process.env.ES_API_KEY}`;
+  } else if (process.env.ES_USERNAME && process.env.ES_PASSWORD) {
+    headers["Authorization"] =
+      `Basic ${Buffer.from(`${process.env.ES_USERNAME}:${process.env.ES_PASSWORD}`).toString("base64")}`;
+  } else if (process.env.ES_URL) {
+    try {
+      const u = new URL(process.env.ES_URL);
+      if (u.username || u.password) {
+        headers["Authorization"] =
+          `Basic ${Buffer.from(`${u.username}:${u.password}`).toString("base64")}`;
+      }
+    } catch {}
+  }
+  return headers;
+}
+
+function esBaseUrl() {
+  const raw = (process.env.ES_URL || "http://localhost:9200").replace(
+    /\/+$/,
+    "",
+  );
+  return raw.replace(/\/\/[^@]+@/, "//");
+}
+
+export async function elastic(path: string, method = "GET", body?: unknown) {
+  const r = await fetch(esBaseUrl() + path, {
+    method,
+    headers: esHeaders("application/json"),
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!r.ok) throw Error("Search service " + r.status);
+  return r.json();
+}
 
 let indexed = false;
 export async function ensureEmailIndex() {

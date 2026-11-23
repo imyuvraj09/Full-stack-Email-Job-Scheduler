@@ -16,11 +16,11 @@ export interface Email {
   preview: string | null;
 }
 export async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const resp = await fetch(url, init);
-  if (!resp.ok) {
-    if (resp.status === 401) throw new Error("Sign in required");
-    const data = await resp.json().catch(() => ({}));
-    throw new Error(data.error || "Request failed (" + resp.status + ")");
+  const response = await fetch(url, init);
+  if (!response.ok) {
+    if (response.status === 401) throw new Error("Sign in required");
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || "Request failed (" + response.status + ")");
   }
-  return resp.status === 204 ? (undefined as T) : resp.json();
+  return response.status === 204 ? (undefined as T) : response.json();
 }

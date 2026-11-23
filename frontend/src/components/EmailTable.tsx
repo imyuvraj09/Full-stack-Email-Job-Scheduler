@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { api, type Email } from "../api";
-const fmt = (s: string) =>
+import { api, type Email } from "../services/api";
+const formatTime = (s: string) =>
   new Date(s).toLocaleString(undefined, {
     month: "short",
     day: "numeric",
@@ -23,18 +23,18 @@ export function EmailTable({
     [retry, setRetry] = useState(0);
   useEffect(() => {
     let active = true;
-    const ctl = new AbortController();
+    const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     setLoading(true);
     setError("");
     async function load() {
       try {
-        const data = await api<{ rows: Email[] }>(
+        const pageOfEmails = await api<{ rows: Email[] }>(
           "/api/emails?" + new URLSearchParams({ tab, q, page: String(page) }),
-          { signal: ctl.signal },
+          { signal: controller.signal },
         );
         if (active) {
-          setRows(data.rows);
+          setRows(pageOfEmails.rows);
           setError("");
         }
       } catch (e) {
@@ -50,7 +50,7 @@ export function EmailTable({
     return () => {
       active = false;
       clearTimeout(timer);
-      ctl.abort();
+      controller.abort();
     };
   }, [tab, q, page, refresh, retry]);
   const scheduled = tab === "scheduled";
@@ -106,7 +106,9 @@ export function EmailTable({
                       r.subject
                     )}
                   </td>
-                  <td>{fmt((scheduled ? r.due : r.finished) || r.due)}</td>
+                  <td>
+                    {formatTime((scheduled ? r.due : r.finished) || r.due)}
+                  </td>
                   <td>
                     <span className={"badge " + r.status}>{r.status}</span>
                     {r.detail && <small>{r.detail}</small>}

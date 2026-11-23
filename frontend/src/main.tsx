@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Compose } from "./components/Compose";
-import { api, type Me } from "./api";
+import { api, type Me } from "./services/api";
 import "./style.css";
 import { EmailTable } from "./components/EmailTable";
 import { Brand } from "./components/Brand";
@@ -56,7 +56,6 @@ function App() {
   if (compose)
     return (
       <main className="compose-page">
-        {" "}
         <Compose
           me={me}
           close={() => setCompose(false)}
@@ -73,7 +72,7 @@ function App() {
     <div className="layout">
       <aside>
         <header>
-          <Brand />{" "}
+          <Brand />
           <div className="profile">
             {me.user.avatar ? (
               <img alt="" src={me.user.avatar} />
@@ -113,7 +112,7 @@ function App() {
         <nav aria-label="Email folders">
           {(["scheduled", "sent"] as const).map((t) => (
             <button
-              className={!compose && t === tab ? "selected" : ""}
+              className={t === tab ? "selected" : ""}
               key={t}
               onClick={() => {
                 setTab(t);

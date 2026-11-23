@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import { unseal } from "../core";
+import { unseal } from "../crypto";
 export async function notifySlack(c: PoolClient, event: string) {
   const { owner, sender, window, limit, scope, connectionId } =
     JSON.parse(event);

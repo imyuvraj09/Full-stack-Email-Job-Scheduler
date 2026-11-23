@@ -1,4 +1,11 @@
-.env
 node_modules/
-frontend/dist/
+dist/
+build/
+coverage/
+.env
+.env.*
+!.env.example
 *.log
+*.zip
+.idea/
+.DS_Store

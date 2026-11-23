@@ -1,4 +1,3 @@
-// Loaded by the integration runner only. Production entry points never import this file.
 import mail from "nodemailer";
 const createTransport = mail.createTransport.bind(mail);
 mail.createTransport = () =>
