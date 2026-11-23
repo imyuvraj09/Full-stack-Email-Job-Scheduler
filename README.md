@@ -1,9 +1,13 @@
+**Upload a list of leads, pick a start time, and let the queue send the emails for you.**
+Scheduled sends survive restarts, and per-sender rate limits keep the SMTP side under control.
+
+
+https://github.com/user-attachments/assets/b0412bec-a37d-4e50-a03e-4294716cda8f
+
 <div align="center">
 
 # 📬 Full-stack Email Job Scheduler
 
-**Upload a list of leads, pick a start time, and let the queue send the emails for you.**
-Scheduled sends survive restarts, and per-sender rate limits keep the SMTP side under control.
 
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933?logo=node.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)
