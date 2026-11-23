@@ -6,7 +6,7 @@
   "scripts": {
     "api": "node --import tsx backend/src/api.ts",
     "worker": "node --import tsx backend/src/worker.ts",
-    "start": "node --import tsx backend/src/worker.ts & node --import tsx backend/src/api.ts",
+    "start": "node --import tsx backend/src/api.ts",
     "web": "vite frontend --host 0.0.0.0",
     "build": "tsc --noEmit && vite build frontend",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
