@@ -5,7 +5,7 @@ import {
   type NextFunction,
 } from "express";
 import { randomBytes } from "node:crypto";
-import { base, env } from "../config";
+import { base, env, frontendBase } from "../config";
 import { hash, seal, unseal } from "../crypto";
 import { db } from "../db/database";
 type Profile = {
@@ -22,10 +22,11 @@ declare global {
     }
   }
 }
+const isCross = frontendBase !== base;
 const cookies = {
   httpOnly: true,
-  secure: base.startsWith("https:"),
-  sameSite: "lax" as const,
+  secure: isCross || base.startsWith("https:"),
+  sameSite: (isCross ? "none" : "lax") as "none" | "lax",
   path: "/",
 };
 export async function identify(
@@ -103,7 +104,7 @@ for (const provider of ["google", "slack"] as const) {
       return;
     }
     if (typeof req.query.code !== "string") {
-      res.redirect("/?auth=cancelled");
+      res.redirect(frontendBase + "/?auth=cancelled");
       return;
     }
     const form = new URLSearchParams({
@@ -171,7 +172,7 @@ for (const provider of ["google", "slack"] as const) {
         seal(url),
       ]);
     }
-    res.redirect("/");
+    res.redirect(frontendBase + "/");
   });
 }
 auth.post("/logout", required, async (req, res) => {

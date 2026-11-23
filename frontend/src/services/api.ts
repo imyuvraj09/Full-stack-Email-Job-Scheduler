@@ -15,8 +15,14 @@ export interface Email {
   detail: string | null;
   preview: string | null;
 }
+export const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+
 export async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const endpoint = url.startsWith("http") ? url : `${API_BASE}${url}`;
+  const response = await fetch(endpoint, {
+    ...init,
+    credentials: "include",
+  });
   if (!response.ok) {
     if (response.status === 401) throw new Error("Sign in required");
     const body = await response.json().catch(() => ({}));

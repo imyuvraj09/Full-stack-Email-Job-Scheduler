@@ -8,23 +8,40 @@ import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { ExpressAdapter } from "@bull-board/express";
 import auth, { identify, required } from "./routes/auth";
-import { base, cap, gap, senders } from "./config";
+import { cap, gap, senders, clientOrigins } from "./config";
 import { migrate } from "./db/database";
 import { queue } from "./services/queue";
 const app = express();
 app.disable("x-powered-by");
-app.use(express.json({ limit: "3mb" }), cookieParser(), identify);
 app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && clientOrigins.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+    );
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type,Authorization,Idempotency-Key",
+    );
+  }
+  if (req.method === "OPTIONS") {
+    res.sendStatus(204);
+    return;
+  }
   if (
     !["GET", "HEAD", "OPTIONS"].includes(req.method) &&
-    req.headers.origin &&
-    req.headers.origin !== base
+    origin &&
+    !clientOrigins.has(origin)
   ) {
     res.sendStatus(403);
     return;
   }
   next();
 });
+app.use(express.json({ limit: "3mb" }), cookieParser(), identify);
 app.use("/auth", auth);
 app.use("/api", required);
 app.get("/api/me", (req, res) =>

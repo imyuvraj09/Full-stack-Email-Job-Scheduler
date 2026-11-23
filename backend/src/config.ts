@@ -9,6 +9,20 @@ export const base = new URL(
     process.env.RENDER_EXTERNAL_URL ||
     "http://localhost:3000",
 ).origin;
+export const frontendBase =
+  process.env.CLIENT_URL || process.env.FRONTEND_URL || base;
+export const clientOrigins = new Set(
+  [base, process.env.CLIENT_URL, process.env.FRONTEND_URL]
+    .filter(Boolean)
+    .map((url) => {
+      try {
+        return new URL(url!).origin;
+      } catch {
+        return null;
+      }
+    })
+    .filter((o): o is string => Boolean(o)),
+);
 export const senders = z
   .array(
     z.object({

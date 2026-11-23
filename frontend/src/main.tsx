@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Compose } from "./components/Compose";
-import { api, type Me } from "./services/api";
+import { api, API_BASE, type Me } from "./services/api";
 import "./style.css";
 import { EmailTable } from "./components/EmailTable";
 import { Brand } from "./components/Brand";
@@ -41,7 +41,7 @@ function App() {
         <div className="login-card">
           <Brand />
           <h1>Login</h1>
-          <a className="primary" href="/auth/google">
+          <a className="primary" href={`${API_BASE}/auth/google`}>
             <span className="google-mark" aria-hidden="true">
               G
             </span>{" "}
@@ -139,9 +139,9 @@ function App() {
               Disconnect Slack
             </button>
           ) : (
-            <a href="/auth/slack">Connect Slack ↗</a>
+            <a href={`${API_BASE}/auth/slack`}>Connect Slack ↗</a>
           )}
-          {me.admin && <a href="/ops/queues">Live queue dashboard ↗</a>}
+          {me.admin && <a href={`${API_BASE}/ops/queues`}>Live queue dashboard ↗</a>}
         </div>
       </aside>
       <main>
