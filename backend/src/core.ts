@@ -38,7 +38,11 @@ export function env(k: string) {
   if (!v) throw Error("Missing " + k);
   return v;
 }
-export const base = new URL(env("APP_URL")).origin;
+export const base = new URL(
+  process.env.APP_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    "http://localhost:3000",
+).origin;
 export const db = new Pool({
   password: env("POSTGRES_PASSWORD"),
   ssl:
