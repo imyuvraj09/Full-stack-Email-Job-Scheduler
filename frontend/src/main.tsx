@@ -41,7 +41,10 @@ function App() {
         <div className="login-card">
           <Brand />
           <h1>Login</h1>
-          <a className="primary" href={`${API_BASE}/auth/google`}>
+          <a
+            className="primary"
+            href={`${API_BASE}/auth/google?returnTo=${encodeURIComponent(window.location.origin)}`}
+          >
             <span className="google-mark" aria-hidden="true">
               G
             </span>{" "}
@@ -139,7 +142,11 @@ function App() {
               Disconnect Slack
             </button>
           ) : (
-            <a href={`${API_BASE}/auth/slack`}>Connect Slack ↗</a>
+            <a
+              href={`${API_BASE}/auth/slack?returnTo=${encodeURIComponent(window.location.origin)}`}
+            >
+              Connect Slack ↗
+            </a>
           )}
           {me.admin && <a href={`${API_BASE}/ops/queues`}>Live queue dashboard ↗</a>}
         </div>

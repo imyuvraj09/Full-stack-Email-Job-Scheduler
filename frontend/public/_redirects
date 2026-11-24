@@ -1,1 +1,4 @@
-/*    /index.html   200
+/api/*   https://full-stack-email-job-scheduler-qe6u.onrender.com/api/:splat   200!
+/auth/*  https://full-stack-email-job-scheduler-qe6u.onrender.com/auth/:splat  200!
+/ops/*   https://full-stack-email-job-scheduler-qe6u.onrender.com/ops/:splat   200!
+/*       /index.html                                                           200

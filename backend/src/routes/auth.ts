@@ -62,7 +62,10 @@ for (const provider of ["google", "slack"] as const) {
       return;
     }
     let returnTo = frontendBase;
-    if (req.headers.referer) {
+    const queryReturnTo = req.query.returnTo as string | undefined;
+    if (queryReturnTo && isAllowedOrigin(queryReturnTo)) {
+      returnTo = queryReturnTo;
+    } else if (req.headers.referer) {
       try {
         const refUrl = new URL(req.headers.referer);
         if (isAllowedOrigin(refUrl.origin)) returnTo = refUrl.origin;
