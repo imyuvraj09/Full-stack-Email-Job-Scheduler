@@ -3,7 +3,7 @@
   publish = "frontend/dist"
 
 [build.environment]
-  VITE_API_URL = "https://full-stack-email-job-scheduler-qe6u.onrender.com"
+  VITE_API_URL = ""
 
 [[redirects]]
   from = "/api/*"

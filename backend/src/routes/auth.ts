@@ -63,8 +63,16 @@ for (const provider of ["google", "slack"] as const) {
     }
     let returnTo = frontendBase;
     const queryReturnTo = req.query.returnTo as string | undefined;
+    const forwardedHost = req.headers["x-forwarded-host"] as string | undefined;
+    const forwardedProto =
+      (req.headers["x-forwarded-proto"] as string | undefined) || "https";
     if (queryReturnTo && isAllowedOrigin(queryReturnTo)) {
       returnTo = queryReturnTo;
+    } else if (
+      forwardedHost &&
+      isAllowedOrigin(forwardedProto + "://" + forwardedHost)
+    ) {
+      returnTo = forwardedProto + "://" + forwardedHost;
     } else if (req.headers.referer) {
       try {
         const refUrl = new URL(req.headers.referer);
